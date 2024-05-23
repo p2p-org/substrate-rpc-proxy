@@ -11,6 +11,24 @@ Conisist of two parts:
 **consumer** (optional) - monitors extrinsics (seen by proxy) inclusion to blockchain, provide observability and retry mechanism to resist node failures after transaction was accepted by RPC node but before it was included into block
 
 
+Workflow
+
+```mermaid
+sequenceDiagram;
+    actor client
+    client-->>+sub-proxy: user send JSON-RPC request
+    alt is extrinsic?
+    sub-proxy-->redis: save to redis stream
+    end
+    sub-proxy-->>+nodes: proxy forward requests to upstream node
+    nodes-->>-sub-proxy: upstream response
+    sub-proxy-->>-client: client response
+    Note over sub-proxy,client: typical interaction
+    redis-->sub-consumer: retry/validate extrinsics
+    Note over redis,sub-consumer: listen stream in loop
+```
+
+
 #### Proxy configuration
 
 * `SUB_LISTEN (default ":9944,:9933")` -  Comma-separated list of local addresses to listen
