@@ -6,7 +6,7 @@ JSON-RPC/substrate aware reverse proxy in Go.
 
 Conisist of two parts:
 
-**proxy**`** - simple reverse proxy supports websocket/http
+**proxy** - simple reverse proxy supports websocket/http
 
 **consumer** (optional) - monitors extrinsics (seen by proxy) inclusion to blockchain, provide observability and retry mechanism to resist node failures after transaction was accepted by RPC node but before it was included into block
 
@@ -25,7 +25,7 @@ Conisist of two parts:
 * `SUB_REDIS_STREAM_NAME`, `SUB_REDIS_ADDR`, `SUB_REDIS_PASSWORD` - Redis connection settings (does not make sense if `SUB_INSPECT_EXTRINISICS: false`)
 * `SUB_METRICS_LISTEN (default ":8888")` - Separate binding for exposing prometheus metrics
 * `SUB_PPROF_ENABLED (default false)` - Enable /debug/pprof/ hadnler on `SUB_METRICS_LISTEN`
-* `SUB_THROTTLE_BACKLOG_SIZE (default 30000)`, `SUB_THROTTLE_LIMIT (default 6000)` - Rate-limiting parameters if `SUB_THROTTLE_LIMIT` reached requests proxy will queue 26k `SUB_THROTTLE_BACKLOG_SIZE - SUB_THROTTLE_LIMIT` more requests for 3 minutes max to 
+* `SUB_THROTTLE_BACKLOG_SIZE (default 30000)`, `SUB_THROTTLE_LIMIT (default 6000)` - Rate-limiting parameters if `SUB_THROTTLE_LIMIT` reached requests proxy will queue 26k requests = `SUB_THROTTLE_BACKLOG_SIZE - SUB_THROTTLE_LIMIT` requests for 3 minutes maximum after that requests will be dropped and client will get error.
 * `SUB_IGNORE_HEALTHCHECKS` - Removes upstream healthchecking logic considering that it's always alive 
 * `SUB_DENY_METHODS (default "author_rotateKeys")` - Comma-separated list of methods that proxy must not forward to upstream 
 
