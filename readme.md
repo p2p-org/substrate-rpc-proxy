@@ -4,14 +4,14 @@
 JSON-RPC/substrate aware reverse proxy in Go. 
 
 
-Conisist of two parts:
+Project consists of two parts:
 
 **proxy** - simple reverse proxy supports websocket/http
 
 **consumer** (optional) - monitors extrinsics (seen by proxy) inclusion to blockchain, provide observability and retry mechanism to resist node failures after transaction was accepted by RPC node but before it was included into block
 
 
-Workflow
+How it works
 
 ```mermaid
 sequenceDiagram;
@@ -79,6 +79,7 @@ Worth mentioning:
 
 #### Features
 
+* Extendable: code written with middleware pattern, new blockchain can be onboarded implementing healthcheck function 
 * Rate limiting (set SUB_THROTTLE_LIMIT to nodes max-rpc-connections*number of upstream)
 * Decode storage with any http client 
   ```curl -s -d '{"id":1, "jsonrpc":"extensions/get-storage/1.0","method":"system.events"}' -v http://127.0.0.1:9944 | jq
