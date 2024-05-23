@@ -24,7 +24,7 @@ sequenceDiagram;
     nodes-->>-sub-proxy: upstream response
     sub-proxy-->>-client: client response
     Note over sub-proxy,client: typical interaction
-    redis-->sub-consumer: retry/validate extrinsics
+    redis-->sub-consumer: retry/check inclusion
     Note over redis,sub-consumer: listen stream in loop
 ```
 
