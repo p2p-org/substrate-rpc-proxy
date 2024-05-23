@@ -80,11 +80,11 @@ Decode storage with any http client
    ...
 ```
 
-##### History
+#### History
 
 Project started in Jan 2023 in p2p.org in Polkadot SRE Team. Main goal of the project is to provide stable RPC service.
 
 
-##### References
+#### References
 
-github.com/itering/scale.go - Go implementation of scale codec
+[scale.go](github.com/itering/scale.go) - Go implementation of scale codec
