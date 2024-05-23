@@ -6,9 +6,9 @@ JSON-RPC/substrate aware reverse proxy in Go.
 
 Conisist of two parts:
 
-`proxy` - simple reverse proxy supports websocket/http
+**proxy**`** - simple reverse proxy supports websocket/http
 
-`consumer` (optional) - monitors extrinsics (seen by proxy) inclusion to blockchain, provide observability and retry mechanism to resist node failures after transaction was accepted by RPC node but before it was included into block
+**consumer** (optional) - monitors extrinsics (seen by proxy) inclusion to blockchain, provide observability and retry mechanism to resist node failures after transaction was accepted by RPC node but before it was included into block
 
 
 #### Proxy configuration
@@ -61,24 +61,25 @@ Worth mentioning:
 
 #### Features
 
-Decode storage with any http client 
-```curl -s -d '{"id":1, "jsonrpc":"extensions/get-storage/1.0","method":"system.events"}' -v http://127.0.0.1:9944 | jq
-[
-  {
-    "type": {
-      "module_id": "System",
-      "event_id": "ExtrinsicSuccess"
+* Rate limiting (set SUB_THROTTLE_LIMIT to nodes max-rpc-connections*number of upstream)
+* Decode storage with any http client 
+  ```curl -s -d '{"id":1, "jsonrpc":"extensions/get-storage/1.0","method":"system.events"}' -v http://127.0.0.1:9944 | jq
+  [
+    {
+      "type": {
+        "module_id": "System",
+        "event_id": "ExtrinsicSuccess"
+      },
+      "extrinsic_idx": 0,
+      "params": [...]
     },
-    "extrinsic_idx": 0,
-    "params": [...]
-  },
-  {
-    "type": {
-      "module_id": "ParaInclusion",
-      "event_id": "CandidateIncluded"
-    }
-   ...
-```
+    {
+      "type": {
+        "module_id": "ParaInclusion",
+        "event_id": "CandidateIncluded"
+      }
+    ...
+  ```
 
 #### History
 
