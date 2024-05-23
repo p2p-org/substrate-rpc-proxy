@@ -7,10 +7,11 @@ JSON-RPC/substrate aware reverse proxy in Go.
 Conisist of two parts:
 
 `proxy` - simple reverse proxy supports websocket/http
+
 `consumer` (optional) - monitors extrinsics (seen by proxy) inclusion to blockchain, provide observability and retry mechanism to resist node failures after transaction was accepted by RPC node but before it was included into block
 
 
-##### Proxy
+#### Proxy configuration
 
 * `SUB_LISTEN (default ":9944,:9933")` -  Comma-separated list of local addresses to listen
 * `SUB_HOSTS (default "http+ws://127.0.0.1:9944/")` - Comma-separated list of upstream urls, each upstream schemes supported: ws, http, http+ws, https, wss, https+wss
@@ -28,7 +29,7 @@ Conisist of two parts:
 * `SUB_IGNORE_HEALTHCHECKS` - Removes upstream healthchecking logic considering that it's always alive 
 * `SUB_DENY_METHODS (default "author_rotateKeys")` - Comma-separated list of methods that proxy must not forward to upstream 
 
-##### How Proxy choose upstream
+#### How Proxy choose upstream
 
 Only one load-balancing strategy supported: **random**
 
@@ -41,7 +42,7 @@ Only one load-balancing strategy supported: **random**
 5. if there is no server that can handle websocket request then proxy will wait 10 seconds and then retry to pick upstream and finally proxy will giveup and forward request to **random** server if no apropriate was found.
 
 
-##### Consumer
+#### Consumer configuration
 
 Tracks extrinsic inclusion and optionally tries to resubmit them, configuration:
 
@@ -52,13 +53,13 @@ Worth mentioning:
 * `SUB_TRY_RESUBMIT` - resubmit extrinsic if it not appeared on-chain so far
 
 
-##### Similar projects
+#### Similar projects
 
 * [dshackle](https://github.com/emeraldpay/dshackle)
 * [subway](https://github.com/acalanetwork/subway) 
 
 
-##### Features
+#### Features
 
 Decode storage with any http client 
 ```curl -s -d '{"id":1, "jsonrpc":"extensions/get-storage/1.0","method":"system.events"}' -v http://127.0.0.1:9944 | jq
