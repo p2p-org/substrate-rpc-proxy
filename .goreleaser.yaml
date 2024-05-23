@@ -1,0 +1,41 @@
+project_name: substrate-rpc-proxy
+
+builds:
+- id: "proxy"
+  main: ./cmd/proxy
+  binary: substrate-proxy
+  env:
+  - CGO_ENABLED=0
+  goos:
+  - linux
+  - darwin
+  goarch:
+  - amd64
+  - arm64
+  mod_timestamp: '{{ .CommitTimestamp }}'
+  flags:
+    - -trimpath
+  ldflags:
+    - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{ .CommitDate }}
+- id: "consumer"
+  main: ./cmd/consumer
+  binary: substrate-proxy-consumer
+  env:
+  - CGO_ENABLED=0
+  goos:
+  - linux
+  - darwin
+  goarch:
+  - amd64
+  - arm64
+  mod_timestamp: '{{ .CommitTimestamp }}'
+  flags:
+    - -trimpath
+  ldflags:
+    - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{ .CommitDate }}
+
+checksum:
+  name_template: 'checksums.txt'
+
+source:
+  enabled: false
