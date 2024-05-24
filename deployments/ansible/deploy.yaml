@@ -1,0 +1,122 @@
+- name: substrate-rpc-proxy deployment
+  hosts: all
+  become: yes
+  gather_facts: no
+  vars:
+    substrate_proxy_user: "substrateproxy"
+    substrate_proxy_group: "{{ substrate_proxy_user }}"
+    substrate_proxy_listen: ":80"
+    substrate_proxy_metrics_listen: "127.0.0.1:8888"
+    substrate_proxy_version: "0.0.2"
+    substrate_proxy_home: /var/lib/substrate-proxy
+    substrate_proxy_downloads_dir: "{{ substrate_proxy_home }}/downloads"
+    substrate_proxy_download_sum: sha256:5d9a258904b598da1af80871e790466235d3dfb1a6063ec1904147388b6f1405
+    substrate_proxy_download_url: https://github.com/p2p-org/substrate-rpc-proxy/releases/download/v{{ substrate_proxy_version }}/substrate-rpc-proxy_{{ substrate_proxy_version }}_linux_amd64.tar.gz
+  vars_prompt:
+  - name: substrate_proxy_upstreams
+    private: false
+    prompt: comma-separated list of upstream servers
+    default: "http+ws://127.0.0.1:9944"
+  tasks:
+  - name: substrate-proxy group present
+    group:
+      name: "{{ substrate_proxy_group }}"
+      state: present
+
+  - name: substrate-proxy user present
+    user:
+      name: "{{ substrate_proxy_user }}"
+      comment: "substrate-proxy user"
+      group: "{{ substrate_proxy_group }}"
+      home: "{{ substrate_proxy_home }}"
+      system: true
+      shell: /bin/false
+
+  - name: download dirs present
+    file:
+      path: "{{ item }}"
+      owner: "{{ substrate_proxy_user }}"
+      group: "{{ substrate_proxy_group }}"
+      state: directory
+    with_items:
+    - "{{ substrate_proxy_downloads_dir }}"
+    - "{{ substrate_proxy_downloads_dir }}/substrate-rpc-proxy_{{ substrate_proxy_version }}"
+
+  - name: substrate-proxy downloaded
+    get_url:
+      url: "{{ substrate_proxy_download_url }}"
+      checksum: "{{ substrate_proxy_download_sum }}"
+      dest: "{{ substrate_proxy_downloads_dir }}/substrate-rpc-proxy_{{ substrate_proxy_version }}.tar.gz"
+      owner: "{{ substrate_proxy_user }}"
+      group: "{{ substrate_proxy_group }}"
+
+  - name: substrate-proxy unarchived
+    unarchive:
+      remote_src: yes
+      src: "{{ substrate_proxy_downloads_dir }}/substrate-rpc-proxy_{{ substrate_proxy_version }}.tar.gz"
+      dest: "{{ substrate_proxy_downloads_dir }}/substrate-rpc-proxy_{{ substrate_proxy_version }}"
+      owner: "{{ substrate_proxy_user }}"
+      group: "{{ substrate_proxy_group }}"
+
+  - name: substrate-proxy present in bin dir
+    copy:
+      src: "{{ substrate_proxy_downloads_dir }}/substrate-rpc-proxy_{{ substrate_proxy_version }}/substrate-proxy"
+      dest: "/usr/local/bin/substrate-proxy"
+      mode: "0755"
+      owner: "{{ substrate_proxy_user }}"
+      group: "{{ substrate_proxy_group }}"
+      remote_src: yes
+
+  - name: allow proxy bind 80/443
+    shell: setcap cap_net_bind_service=+ep /usr/local/bin/substrate-proxy
+
+  - name: config present (not overwrite existing)
+    copy:
+      dest: "{{ substrate_proxy_home }}/env"
+      owner: "{{ substrate_proxy_user }}"
+      group: "{{ substrate_proxy_group }}"
+      content: |
+        SUB_LISTEN={{ substrate_proxy_listen }}
+        SUB_HOSTS={{ substrate_proxy_upstreams }}
+        SUB_METRICS_LISTEN={{ substrate_proxy_metrics_listen }}
+        SUB_UPSTREAM_MAXGAP=10
+        SUB_UPSTREAM_MINPEER=4
+
+  - name: log directory present
+    file:
+      path: /var/log/substrate-proxy
+      state: directory
+      owner: "{{ substrate_proxy_user }}"
+      group: "{{ substrate_proxy_group }}"
+
+  - name: systemd unit present
+    copy:
+      dest: /etc/systemd/system/substrate-proxy.service
+      content: |
+        [Unit]
+        Description=substrate-proxy
+        Requires=network-online.target
+        After=network-online.target
+
+        [Service]
+        User={{ substrate_proxy_user }}
+        Group={{ substrate_proxy_group }}
+        EnvironmentFile={{ substrate_proxy_home }}/env
+        ExecStart=/usr/local/bin/substrate-proxy
+        Restart=on-failure
+        StandardOutput=append:/var/log/substrate-proxy/access.log
+        StandardError=append:/var/log/substrate-proxy/error.log
+
+        KillSignal=SIGINT
+        Restart=always
+        RestartSec=5
+
+        [Install]
+        WantedBy=multi-user.target
+
+  - name: substrate-proxy started
+    systemd:
+      name: substrate-proxy.service
+      daemon_reload: yes
+      enabled: yes
+      state: restarted

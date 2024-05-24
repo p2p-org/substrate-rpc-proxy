@@ -1,0 +1,4 @@
+SUB_HOSTS=https+wss://polkadot-rpc.publicnode.com,https+wss://polkadot.api.onfinality.io/public-ws,https+wss://polkadot-rpc.dwellir.com
+SUB_PPROF_ENABLED=true
+SUB_UPSTREAM_MAXGAP=10
+SUB_UPSTREAM_MINPEERS=4
