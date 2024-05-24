@@ -201,25 +201,28 @@ func (w *RPCClient) NewConnectionContext(ctx context.Context, name string) conte
 }
 
 func (w *RPCClient) ReleaseConnection(ctx context.Context) {
-	var name string
 	if ctx.Value(contextKeyBrokerName) == nil {
 		ctx = context.WithValue(ctx, contextKeyBrokerName, w.defaultConnection)
 	}
 	w.rw.Lock()
 	defer w.rw.Unlock()
-	name = ctx.Value(contextKeyBrokerName).(string)
-	if conn, ok := w.connections.LoadAndDelete(name); ok {
-		conn := conn.(*WSMessageBroker)
-		w.closeWSConnection(conn.ws, conn.err)
+	if name := ctx.Value(contextKeyBrokerName); name != nil {
+		if conn, ok := w.connections.LoadAndDelete(name.(string)); ok {
+			conn := conn.(*WSMessageBroker)
+			w.closeWSConnection(conn.ws, conn.err)
+		}
 	}
 }
 
 func (w *RPCClient) GetOrCreateConnection(ctx context.Context) (*WSMessageBroker, error) {
-	var name string
+
 	if ctx.Value(contextKeyBrokerName) == nil {
 		ctx = context.WithValue(ctx, contextKeyBrokerName, w.defaultConnection)
 	}
-	name = ctx.Value(contextKeyBrokerName).(string)
+	var name string
+	if n := ctx.Value(contextKeyBrokerName); n != nil {
+		name = n.(string)
+	}
 
 	w.rw.Lock()
 	defer w.rw.Unlock()

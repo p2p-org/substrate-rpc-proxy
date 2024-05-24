@@ -15,10 +15,10 @@ func DenyRPCMethods(methods []string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			if method, ok := ctx.Value(RPCMethodCtxKey).(string); ok {
+			if method := GetRPCMethod(ctx); method != "" {
 				for _, m := range methods {
 					if strings.EqualFold(m, method) {
-						if id, ok := ctx.Value(RPCRequestID).(int); ok {
+						if id := GetRPCRequestID(ctx); id != 0 {
 							resp, _ := jsoniter.Marshal(dto.RPCFrame{
 								RPC: "2.0",
 								Id:  id,

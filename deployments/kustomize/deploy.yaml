@@ -1,0 +1,53 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: substrate-rpc-proxy
+  labels:
+    app: substrate-rpc-proxy
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: substrate-rpc-proxy
+  template:
+    metadata:
+      labels:
+        app: substrate-rpc-proxy
+    spec:
+      containers:
+      - name: substrate-rpc-proxy
+        image: substrate-rpc-proxy
+        command: ["/app/proxy"]
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: rpc
+          containerPort: 9944
+        - name: metrics
+          containerPort: 8888
+        resources:
+          limits: { cpu: 300m, memory: 384Mi }
+          requests: { cpu: 100m, memory: 128Mi }
+        envFrom:
+        - configMapRef:
+            name: substrate-rpc-proxy-config
+        env:
+        - name: "SUB_METRICS_LISTEN"
+          value: ":8888"        
+        livenessProbe: 
+          httpGet:
+            path: /healthz
+            port: 8888
+          initialDelaySeconds: 15
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8888
+          initialDelaySeconds: 15
+          periodSeconds: 15
+        securityContext:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+      securityContext:
+        runAsUser: 8080

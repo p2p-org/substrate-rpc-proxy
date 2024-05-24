@@ -375,14 +375,14 @@ func (prov *UpstreamProvider) reportMetrics() {
 			} else {
 				for _, ep := range upst.endpoints {
 					if ep.status == EndpointStatusHealthy {
-						current = append(current, fmt.Sprintf("%s|%s", FormatUpstream(ep), "UpNormal"))
+						current = append(current, fmt.Sprintf("%s|%s", FormatUpstream(&ep), "UpNormal"))
 						continue
 					}
 					if ep.status == EndpointStatusAvailable {
-						current = append(current, fmt.Sprintf("%s|%s", FormatUpstream(ep), "UpDegraded"))
+						current = append(current, fmt.Sprintf("%s|%s", FormatUpstream(&ep), "UpDegraded"))
 						continue
 					}
-					current = append(current, fmt.Sprintf("%s|%s", FormatUpstream(ep), "Unavailable"))
+					current = append(current, fmt.Sprintf("%s|%s", FormatUpstream(&ep), "Unavailable"))
 				}
 			}
 		}

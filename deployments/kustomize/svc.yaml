@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: substrate-ws-proxy-prod
+  labels:
+    app: substrate-ws-proxy
+    env: prod
+    release: substrate-rpc-proxy
+spec:
+  ports:
+  - { port: 80, targetPort: 9944, protocol: TCP, name: rpc }
+  - { port: 8080, targetPort: 8080, protocol: TCP, name: metrics }
+  selector:
+    app: substrate-ws-proxy
+    env: prod
+    release: substrate-rpc-proxy
