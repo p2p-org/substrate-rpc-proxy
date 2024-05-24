@@ -7,6 +7,3 @@ configMapGenerator:
 - envs:
   - env
   name: substrate-rpc-proxy-config
-images:
-- name: substrate-rpc-proxy
-  newName: test

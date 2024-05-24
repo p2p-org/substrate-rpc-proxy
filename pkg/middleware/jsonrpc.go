@@ -48,8 +48,8 @@ func (m *JsonRPCMiddleware) ParsePayload(payload []byte) interface{} {
 }
 
 func GetJsonRPCFrame(ctx context.Context) *dto.RPCFrame {
-	if frame, ok := ctx.Value(RPCPayloadCtxKey).(*dto.RPCFrame); ok {
-		return frame
+	if f := ctx.Value(RPCPayloadCtxKey); f != nil {
+		return f.(*dto.RPCFrame)
 	}
 	return nil
 }
@@ -66,15 +66,15 @@ func GetJsonRPCMiddleware(r *http.Request) *JsonRPCMiddleware {
 }
 
 func GetRPCRequestID(ctx context.Context) int {
-	if id, ok := ctx.Value(RPCRequestID).(int); ok {
-		return id
+	if id := ctx.Value(RPCRequestID); id != nil {
+		return id.(int)
 	}
 	return 0
 }
 
 func GetRPCMethod(ctx context.Context) string {
-	if m, ok := ctx.Value(RPCMethodCtxKey).(string); ok {
-		return m
+	if m := ctx.Value(RPCMethodCtxKey); m != nil {
+		return m.(string)
 	}
 	return ""
 }
@@ -101,15 +101,20 @@ func GetLogField(ctx context.Context, k string) string {
 }
 
 func GetLogger(ctx context.Context) *logrus.Logger {
-	return ctx.Value(LogLoggerCtxKey).(*logrus.Logger)
+	if log := ctx.Value(LogLoggerCtxKey); log != nil {
+		return log.(*logrus.Logger)
+	}
+	return nil
 }
 
 func logFieldsFromRequest(r *http.Request) logrus.Fields {
 	logFields := make(logrus.Fields)
 	ctx := r.Context()
-
-	for k, v := range ctx.Value(LogFieldsCtxKey).(logrus.Fields) {
-		logFields[k] = v
+	lf := ctx.Value(LogFieldsCtxKey)
+	if lf != nil {
+		for k, v := range lf.(logrus.Fields) {
+			logFields[k] = v
+		}
 	}
 
 	if r.Header.Get("x-forwarded-host") != "" {
@@ -147,7 +152,7 @@ func LogRequestDetails(r *http.Request) {
 
 	logFields := logFieldsFromRequest(r)
 
-	if ctx.Value(LogWithParamsCtxKey).(bool) {
+	if withParams := ctx.Value(LogWithParamsCtxKey); withParams != nil && withParams.(bool) {
 		if f := GetJsonRPCFrame(ctx); f != nil {
 			logFields["method"] = f.Method
 			logFields["id"] = f.Id
@@ -157,9 +162,10 @@ func LogRequestDetails(r *http.Request) {
 		logFields["method"] = GetRPCMethod(ctx)
 		logFields["id"] = GetRPCRequestID(ctx)
 	}
-
-	startTime := ctx.Value(LogRequestStartTime).(time.Time)
-	sec := time.Since(startTime).Seconds()
+	sec := -1.0
+	if startTime := ctx.Value(LogRequestStartTime); startTime != nil {
+		sec = time.Since(startTime.(time.Time)).Seconds()
+	}
 	logFields["duration"] = fmt.Sprintf("%fs", sec)
 	logFields["direction"] = "request"
 

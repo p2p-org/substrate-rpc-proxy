@@ -51,19 +51,3 @@ spec:
           allowPrivilegeEscalation: false
       securityContext:
         runAsUser: 8080
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

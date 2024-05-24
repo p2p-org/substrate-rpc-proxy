@@ -61,13 +61,13 @@ func (ws *Upstream) WriteAndGetResponse(ctx context.Context, id int, req []byte)
 	defer cancel()
 	if ch, ok := ws.requests.Load(id); ok {
 		ws.log.Warn("id duplicate: faulty client or missed write")
-		ch := ch.(RRPayloads)
+		ch := ch.(RunningRequestPayloads)
 		close(ch.ResposeCh)
 	}
 	ch := make(chan []byte, 1)
 	defer close(ch)
 	ws.pause.Lock()
-	ws.requests.Store(id, RRPayloads{
+	ws.requests.Store(id, RunningRequestPayloads{
 		Request:   req,
 		ResposeCh: ch,
 	})
@@ -89,7 +89,7 @@ func (ws *Upstream) WriteAndGetResponse(ctx context.Context, id int, req []byte)
 func (ws *Upstream) retryRunningRequests() bool {
 	ok := true
 	ws.requests.Range(func(key, value any) bool {
-		rr := value.(RRPayloads)
+		rr := value.(RunningRequestPayloads)
 		if err := ws.conn.Write(ws.parentCtx, websocket.MessageText, rr.Request); err != nil {
 			ok = false
 			return false
@@ -105,38 +105,36 @@ func (ws *Upstream) handleUpstreamResponse(w http.ResponseWriter, r *http.Reques
 	)
 
 	jsonRpc := middleware.GetJsonRPCMiddleware(r)
+
 	if jsonRpc == nil {
 		ws.log.WithField("client", ws.client).WithField("upstream", ws.server).Info("RPC middleware not defined request will be processed as raw bytes")
 		ws.Unrecoverable = true
+		_, err = w.Write(response)
+		return err
 	}
-	sent := false
-	// response to client handler
-	if jsonRpc != nil {
-		f, ok := jsonRpc.ParsePayload(response).(dto.RPCFrame)
-		// is raw bytes
-		if !ok {
+	// respond to client
+	parsed := jsonRpc.ParsePayload(response)
+	if parsed == nil {
+		return fmt.Errorf("nil response from upstream")
+	}
+	f, ok := parsed.(dto.RPCFrame)
+	if !ok {
+		return fmt.Errorf("upstream sent some bytes that does not appear to be rpc frame")
+	}
+
+	if rr, ok := ws.requests.Load(f.Id); ok {
+		ch := rr.(RunningRequestPayloads)
+		ch.ResposeCh <- response
+		return nil
+	} else {
+		// is server push
+		if f.Id == 0 {
 			ws.Unrecoverable = true
-		} else {
-			if rr, ok := ws.requests.Load(f.Id); ok {
-				ch := rr.(RRPayloads)
-				ch.ResposeCh <- response
-				sent = true
-			} else {
-				// is server push
-				if f.Id == 0 {
-					ws.Unrecoverable = true
-					middleware.LogSubscriptionDetails(r, f.Method, dto.MustMap(f.Params).MustString("subscription"))
-				}
-			}
+			middleware.LogSubscriptionDetails(r, f.Method, dto.MustMap(f.Params).MustString("subscription"))
 		}
+		_, err = w.Write(response)
+		return err
 	}
-	// direct response to the client
-	if !sent || jsonRpc == nil {
-		if _, err = w.Write(response); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (ws *Upstream) poll(w http.ResponseWriter, r *http.Request) {

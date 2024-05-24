@@ -27,14 +27,14 @@ func (m *HttpMetrics) Middleware() func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			next.ServeHTTP(w, r)
 			ctx := r.Context()
+			duration := -1.0
 
-			startTime := ctx.Value(LogRequestStartTime).(time.Time)
+			if t := ctx.Value(LogRequestStartTime); t != nil {
+				startTime := t.(time.Time)
+				duration = time.Since(startTime).Seconds()
+			}
 			upstream := GetLogField(ctx, "upstream")
-			m.mon.ProcessEvent(monitoring.MetricProxyRPCCalls, time.Since(startTime).Seconds(), ctx.Value(RPCMethodCtxKey).(string), endpoint.FormatUpstream(upstream))
+			m.mon.ProcessEvent(monitoring.MetricProxyRPCCalls, duration, GetRPCMethod(ctx), endpoint.FormatUpstream(upstream))
 		})
 	}
 }
-
-/*if method, ok := entryFields["method"]; ok {
-
-}*/

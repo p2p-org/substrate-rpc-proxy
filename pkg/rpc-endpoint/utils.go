@@ -7,6 +7,12 @@ import (
 
 func FormatUpstream(some interface{}) string {
 	var host, port, path string
+	if u, ok := some.(Upstream); ok {
+		some = &u
+	}
+	if ep, ok := some.(UpstreamEndpoint); ok {
+		some = &ep
+	}
 	switch v := some.(type) {
 	case *Upstream:
 		port = v.Addr.Port()

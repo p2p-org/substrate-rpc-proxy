@@ -23,7 +23,7 @@ const (
 	defaultExecTimeout = 60 * time.Minute
 )
 
-type RRPayloads struct {
+type RunningRequestPayloads struct {
 	Request   []byte
 	ResposeCh chan []byte
 }
@@ -78,6 +78,7 @@ func (p *Proxy) Connect(client *http.Request) (*websocket.Conn, string, error) {
 			continue
 		}
 		conn.SetReadLimit(p.messageMaxBytes)
+		middleware.AddLogField(ctx, "upstream", toServer)
 		return conn, toServer, nil
 	}
 	return nil, "", fmt.Errorf("unable to create upstream connection tried: %s", strings.Join(tries, ","))
@@ -128,7 +129,6 @@ func (h *RPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	r.RequestURI = ""
 	u, _ := url.Parse(server)
-	//h.log.Info(fmt.Sprintf("port: %s, host: %s", u.Port(), u.Host))
 	r.URL = u
 	r.Host = u.Host
 
@@ -140,7 +140,6 @@ func (h *RPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.log.WithError(err).WithField("client", r.RemoteAddr).Warnf("connection with upstream failed")
 			return
 		}
-		//middleware.AddLogField(ctx, "upstream", upst.server)
 
 		defer r.Body.Close()
 		// should not fail: body was already read and set by RPC middleware
@@ -168,7 +167,6 @@ func (h *RPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 	default:
-		//middleware.AddLogField(r.Context(), "upstream", server)
 		proxyHeader := make(http.Header)
 		middleware.CopyHeader(proxyHeader, r.Header)
 		r.Header = proxyHeader

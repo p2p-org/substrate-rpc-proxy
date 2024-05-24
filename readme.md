@@ -102,7 +102,7 @@ Worth mentioning:
 
 #### History
 
-Project started in Jan 2023 in p2p.org in Polkadot SRE Team. Main goal of the project is to provide stable RPC service.
+Project started in Jan 2023 in P2P.ORG Polkadot SRE Team. Main goal of the project is to provide stable RPC service.
 
 
 #### References

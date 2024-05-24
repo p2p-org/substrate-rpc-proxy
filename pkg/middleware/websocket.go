@@ -46,12 +46,15 @@ func IsWebsocket(r *http.Request) bool {
 }
 
 func GetClientConnectionType(ctx context.Context) string {
-	return ctx.Value(ConnectionTypeCtxKey).(string)
+	if t := ctx.Value(ConnectionTypeCtxKey); t != nil {
+		return t.(string)
+	}
+	return ""
 }
 
 func GetConnectionID(ctx context.Context) string {
-	if v, ok := ctx.Value(ConnectionClientIDCtxKey).(string); ok {
-		return v
+	if id := ctx.Value(ConnectionClientIDCtxKey); id != nil {
+		return id.(string)
 	}
 	var buf [12]byte
 	cryptorand.Read(buf[:])

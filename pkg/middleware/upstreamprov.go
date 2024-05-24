@@ -26,15 +26,15 @@ func EndpointProvider(prov endpoint.Provider) func(http.Handler) http.Handler {
 }
 
 func GetAssignedUpstream(ctx context.Context) string {
-	if ct, ok := ctx.Value(ContextKeyUstreamAddr).(string); ok {
-		return ct
+	if ct := ctx.Value(ContextKeyUstreamAddr); ct != nil {
+		return ct.(string)
 	}
 	return ""
 }
 
 func GetEndpointProvider(ctx context.Context) endpoint.Provider {
-	if prov, ok := ctx.Value(ContextKeyUstreamProvider).(endpoint.Provider); ok {
-		return prov
+	if prov := ctx.Value(ContextKeyUstreamProvider); prov != nil {
+		return prov.(endpoint.Provider)
 	}
 	return nil
 }
