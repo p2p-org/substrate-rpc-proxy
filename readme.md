@@ -82,7 +82,8 @@ Worth mentioning:
 * Extendable: code written with middleware pattern, new blockchain can be onboarded implementing healthcheck function 
 * Rate limiting (set SUB_THROTTLE_LIMIT to nodes max-rpc-connections*number of upstream)
 * Decode storage with any http client 
-  ```curl -s -d '{"id":1, "jsonrpc":"extensions/get-storage/1.0","method":"system.events"}' -v http://127.0.0.1:9944 | jq
+  ```
+  curl -s -d '{"id":1, "jsonrpc":"extensions/get-storage/1.0","method":"system.events"}' -v http://127.0.0.1:9944 | jq
   [
     {
       "type": {
@@ -107,4 +108,4 @@ Project started in Jan 2023 in P2P.ORG Polkadot SRE Team. Main goal of the proje
 
 #### References
 
-[scale.go](github.com/itering/scale.go) - Go implementation of scale codec
+[scale.go](https://github.com/itering/scale.go) - Go implementation of scale codec
