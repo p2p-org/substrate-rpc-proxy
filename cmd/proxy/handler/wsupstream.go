@@ -145,7 +145,7 @@ func (ws *Upstream) poll(w http.ResponseWriter, r *http.Request) {
 		ws.conn.Close(websocket.StatusNormalClosure, "")
 	}()
 	defer ws.handler.wsUpstreams.Delete(cid)
-	defer middleware.CancelWebsocket(ws.parentCtx, fmt.Errorf("connection must be closed"))
+	defer middleware.CancelConnection(w, r, fmt.Errorf("connection must be closed"))
 	var (
 		err error
 		b   []byte
@@ -153,6 +153,10 @@ func (ws *Upstream) poll(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-ws.parentCtx.Done():
+			ws.log.WithError(err).
+				WithField("upstream", ws.server).
+				WithField("client", ws.client).
+				Infof("%s parent connection closed", cid)
 			return
 		default:
 			idle, cancel := context.WithTimeout(ws.parentCtx, defaultExecTimeout)
@@ -160,29 +164,33 @@ func (ws *Upstream) poll(w http.ResponseWriter, r *http.Request) {
 			cancel()
 			if err != nil {
 				if !ws.IsRecoverable(err) {
+					ws.log.WithError(err).
+						WithField("upstream", ws.server).
+						WithField("client", ws.client).
+						Warnf("%s upstream read failure", cid)
 					return
 				}
 				ws.pause.Lock()
 				ws.conn.Close(websocket.StatusAbnormalClosure, "")
 				if conn, server, err := ws.proxy.Connect(r); err != nil {
+					ws.pause.Unlock()
 					ws.log.WithError(err).
 						WithField("upstream", ws.server).
 						WithField("client", ws.client).
 						Warnf("%s no live upstreams. client connection will be closed", cid)
 
-					ws.pause.Unlock()
 					return
 				} else {
 					ws.conn = conn
 					ws.server = server
 				}
 				if !ws.retryRunningRequests() {
+					ws.pause.Unlock()
 					ws.log.WithError(err).
 						WithField("upstream", ws.server).
 						WithField("client", ws.client).
 						Warnf("%s no live upstreams. client connection will be closed", cid)
 
-					ws.pause.Unlock()
 					return
 				}
 				ws.pause.Unlock()

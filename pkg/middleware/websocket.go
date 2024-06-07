@@ -4,11 +4,9 @@ import (
 	"context"
 	cryptorand "crypto/rand"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -61,7 +59,7 @@ func GetConnectionID(ctx context.Context) string {
 	return fmt.Sprintf("%x", buf)
 }
 
-func AcceptWebsocket(next http.Handler) http.Handler {
+func AcceptConnection(next http.Handler) http.Handler {
 	var reqid uint64
 	var buf [12]byte
 	cryptorand.Read(buf[:])
@@ -71,9 +69,12 @@ func AcceptWebsocket(next http.Handler) http.Handler {
 		atomic.AddUint64(&reqid, 1)
 		// pass non-ws connections as is
 		if !IsWebsocket(r) {
-			ctx := r.Context()
+			ctx, cancel := context.WithCancel(r.Context())
+			defer cancel()
 			ctx = context.WithValue(ctx, ConnectionClientIDCtxKey, fmt.Sprintf("%s-%06d", prefix, reqid))
-			next.ServeHTTP(w, WithContextValue(r.WithContext(ctx), ConnectionTypeCtxKey, ConnectionTypeHTTPCtx))
+			ctx = context.WithValue(ctx, ConnectionClientCancelCtxKey, cancel)
+			ctx = context.WithValue(ctx, ConnectionTypeCtxKey, ConnectionTypeHTTPCtx)
+			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
 		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
@@ -84,13 +85,11 @@ func AcceptWebsocket(next http.Handler) http.Handler {
 			return
 		}
 		defer func() {
-			d := rand.Intn(500)
-			time.Sleep(time.Duration(d) * time.Millisecond)
 			conn.Close(websocket.StatusNormalClosure, "")
 		}()
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
-		ctx = context.WithValue(ctx, ConnectionClientWSCancelCtxKey, cancel)
+		ctx = context.WithValue(ctx, ConnectionClientCancelCtxKey, cancel)
 		// save and forward client connection for subscription direct cross-posting
 		ctx = context.WithValue(ctx, ConnectionClientWSCtxKey, conn)
 		ctx = context.WithValue(ctx, ConnectionTypeCtxKey, ConnectionTypeWebsocketCtx)
@@ -130,8 +129,9 @@ func AcceptWebsocket(next http.Handler) http.Handler {
 	return http.HandlerFunc(fn)
 }
 
-func CancelWebsocket(ctx context.Context, err error) {
-	if cancel, ok := ctx.Value(ConnectionClientWSCancelCtxKey).(context.CancelFunc); ok {
-		cancel()
+func CancelConnection(w http.ResponseWriter, r *http.Request, err error) {
+	ctx := r.Context()
+	if cancel := ctx.Value(ConnectionClientCancelCtxKey); cancel != nil {
+		cancel.(context.CancelFunc)()
 	}
 }

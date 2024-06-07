@@ -1,5 +1,9 @@
 package middleware
 
+// Ported from go-chi middleware, source:
+// https://github.com/go-chi/chi/blob/master/middleware/throttle.go
+// Added websocket support and metrics
+
 import (
 	"context"
 	"errors"
@@ -94,7 +98,7 @@ func ThrottleWithOpts(opts ThrottleOpts) func(http.Handler) http.Handler {
 
 			case <-ctx.Done():
 				if IsWebsocket(r) {
-					CancelWebsocket(r.Context(), errors.New(errContextCanceled))
+					CancelConnection(w, r, errors.New(errContextCanceled))
 				} else {
 					http.Error(w, errContextCanceled, http.StatusTooManyRequests)
 				}
@@ -109,7 +113,7 @@ func ThrottleWithOpts(opts ThrottleOpts) func(http.Handler) http.Handler {
 				select {
 				case <-timer.C:
 					if IsWebsocket(r) {
-						CancelWebsocket(r.Context(), errors.New(errTimedOut))
+						CancelConnection(w, r, errors.New(errCapacityExceeded))
 					} else {
 						http.Error(w, errTimedOut, http.StatusTooManyRequests)
 					}
@@ -117,7 +121,7 @@ func ThrottleWithOpts(opts ThrottleOpts) func(http.Handler) http.Handler {
 				case <-ctx.Done():
 					timer.Stop()
 					if IsWebsocket(r) {
-						CancelWebsocket(r.Context(), errors.New(errCapacityExceeded))
+						CancelConnection(w, r, errors.New(errCapacityExceeded))
 					} else {
 						http.Error(w, errContextCanceled, http.StatusTooManyRequests)
 					}
@@ -133,9 +137,9 @@ func ThrottleWithOpts(opts ThrottleOpts) func(http.Handler) http.Handler {
 
 			default:
 				if IsWebsocket(r) {
-					CancelWebsocket(r.Context(), errors.New(errCapacityExceeded))
+					CancelConnection(w, r, errors.New(errCapacityExceeded))
 				} else {
-					http.Error(w, errContextCanceled, http.StatusTooManyRequests)
+					http.Error(w, errCapacityExceeded, http.StatusTooManyRequests)
 				}
 				return
 			}

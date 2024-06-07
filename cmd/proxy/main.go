@@ -90,12 +90,13 @@ func main() {
 
 	go http.ListenAndServe(cfg.MetricsListen, nil)
 	r := chi.NewRouter()
-
 	r.Use(chimiddleware.RealIP)
-	r.Use(middleware.AcceptWebsocket)
-	r.Use(middleware.JsonRPC(l, cfg.LogIncludeParams))
 	r.Use(middleware.EndpointProvider(upstreams))
-	r.Use(httpmetrics.Middleware())
+	r.Use(middleware.AcceptConnection)
+	r.Use(middleware.JsonRPC(
+		httpmetrics.Middleware(),
+		middleware.Logger(l, cfg.LogIncludeParams),
+	))
 	r.Use(middleware.ThrottleWithOpts(middleware.ThrottleOpts{
 		Limit:          cfg.ThrottleLimit,
 		BacklogLimit:   cfg.ThrottleBacklogSize,

@@ -11,10 +11,9 @@ import (
 	"time"
 
 	"github.com/p2p-org/substrate-rpc-proxy/pkg/dto"
-
-	"github.com/go-chi/render"
-	jsoniter "github.com/json-iterator/go"
 	"github.com/sirupsen/logrus"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 type RPCMiddleware interface {
@@ -23,6 +22,8 @@ type RPCMiddleware interface {
 
 type JsonRPCMiddleware struct {
 }
+
+type JsonRPCMiddlewareOption func(http.Handler) http.Handler
 
 func (m *JsonRPCMiddleware) ParsePayload(payload []byte) interface{} {
 	if len(payload) > 0 && strings.HasPrefix(string(payload), "[") {
@@ -79,112 +80,17 @@ func GetRPCMethod(ctx context.Context) string {
 	return ""
 }
 
-func AddLogField(ctx context.Context, k string, v string) {
-	entryFields := ctx.Value(LogFieldsCtxKey)
-	if entryFields == nil {
-		return
-	}
-
-	entryFields.(logrus.Fields)[k] = v
-}
-
-func GetLogField(ctx context.Context, k string) string {
-	entryFields := ctx.Value(LogFieldsCtxKey)
-	if entryFields == nil {
-		return ""
-	}
-	field, ok := entryFields.(logrus.Fields)[k]
-	if ok {
-		return field.(string)
-	}
-	return ""
-}
-
-func GetLogger(ctx context.Context) *logrus.Logger {
-	if log := ctx.Value(LogLoggerCtxKey); log != nil {
-		return log.(*logrus.Logger)
-	}
-	return nil
-}
-
-func logFieldsFromRequest(r *http.Request) logrus.Fields {
-	logFields := make(logrus.Fields)
-	ctx := r.Context()
-	lf := ctx.Value(LogFieldsCtxKey)
-	if lf != nil {
-		for k, v := range lf.(logrus.Fields) {
-			logFields[k] = v
-		}
-	}
-
-	if r.Header.Get("x-forwarded-host") != "" {
-		logFields["forwarded_host"] = r.Header.Get("x-forwarded-host")
-	}
-	logFields["client"] = r.RemoteAddr
-	return logFields
-}
-
-func LogSubscriptionDetails(r *http.Request, method string, subscriptionId string) {
-	ctx := r.Context()
-	log := GetLogger(ctx)
-	if log == nil {
-		return
-	}
-	logFields := logFieldsFromRequest(r)
-	logFields["direction"] = "server-push"
-	logFields["sub_id"] = subscriptionId
-	logFields["method"] = method
-
-	path := r.URL.Path
-	if path == "" {
-		path = "/"
-	}
-	log.WithFields(logFields).Debugf("%s %s", GetConnectionID(ctx), path)
-}
-
-func LogRequestDetails(r *http.Request) {
-	ctx := r.Context()
-
-	log := GetLogger(ctx)
-	if log == nil {
-		return
-	}
-
-	logFields := logFieldsFromRequest(r)
-
-	if withParams := ctx.Value(LogWithParamsCtxKey); withParams != nil && withParams.(bool) {
-		if f := GetJsonRPCFrame(ctx); f != nil {
-			logFields["method"] = f.Method
-			logFields["id"] = f.Id
-			logFields["params"] = fmt.Sprintf("%v", f.Params)
-		}
-	} else {
-		logFields["method"] = GetRPCMethod(ctx)
-		logFields["id"] = GetRPCRequestID(ctx)
-	}
-	sec := -1.0
-	if startTime := ctx.Value(LogRequestStartTime); startTime != nil {
-		sec = time.Since(startTime.(time.Time)).Seconds()
-	}
-	logFields["duration"] = fmt.Sprintf("%fs", sec)
-	logFields["direction"] = "request"
-
-	path := r.URL.Path
-	if path == "" {
-		path = "/"
-	}
-	log.WithFields(logFields).Debugf("%s %s", GetConnectionID(ctx), path)
-}
-
 func (m *JsonRPCMiddleware) NewFrameContext(ctx context.Context, f *dto.RPCFrame) context.Context {
 	fctx := context.WithValue(ctx, RPCPayloadCtxKey, f)
+	fctx = context.WithValue(fctx, LogFieldsCtxKey, make(logrus.Fields))
+	fctx = context.WithValue(fctx, LogRequestStartTime, time.Now())
 	fctx = context.WithValue(fctx, RPCRequestID, f.Id)
 	fctx = context.WithValue(fctx, RPCMethodCtxKey, f.Method)
 	fctx = context.WithValue(fctx, RPCMiddlewareCtxKey, m)
 	return fctx
 }
 
-func (m *JsonRPCMiddleware) requestsBatchFrom(r *http.Request, batch dto.RPCBatch) ([]*http.Request, error) {
+func (m *JsonRPCMiddleware) splitBatchToSubrequests(r *http.Request, batch dto.RPCBatch) ([]*http.Request, error) {
 	batchLen := len(batch)
 	if batchLen > 50 {
 		return nil, fmt.Errorf("batch can not exceed 50 items")
@@ -198,7 +104,7 @@ func (m *JsonRPCMiddleware) requestsBatchFrom(r *http.Request, batch dto.RPCBatc
 		rr.ContentLength = -1
 		requests[i] = rr
 	}
-	return []*http.Request{}, nil
+	return requests, nil
 }
 
 func writeBatchResponse(w http.ResponseWriter, writers []*InMemoryWriter) error {
@@ -212,7 +118,7 @@ func writeBatchResponse(w http.ResponseWriter, writers []*InMemoryWriter) error 
 		if err != nil {
 			return err
 		}
-		batch[i] = frame
+		batch = append(batch, frame)
 	}
 	body, _ := jsoniter.Marshal(batch)
 	CopyHeader(w.Header(), writers[0].Header())
@@ -221,19 +127,15 @@ func writeBatchResponse(w http.ResponseWriter, writers []*InMemoryWriter) error 
 	return err
 }
 
-func JsonRPC(log *logrus.Logger, withParams bool) func(http.Handler) http.Handler {
+func JsonRPC(opts ...JsonRPCMiddlewareOption) func(http.Handler) http.Handler {
 	m := JsonRPCMiddleware{}
+
 	return func(next http.Handler) http.Handler {
+		for i := 0; i < len(opts); i++ {
+			next = opts[i](next)
+		}
+
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			entryFields := make(logrus.Fields)
-			ctx := r.Context()
-			ctx = context.WithValue(ctx, LogRequestStartTime, time.Now())
-			ctx = context.WithValue(ctx, LogFieldsCtxKey, entryFields)
-			ctx = context.WithValue(ctx, LogLoggerCtxKey, log)
-			ctx = context.WithValue(ctx, LogWithParamsCtxKey, withParams)
-
-			r = r.WithContext(ctx)
-
 			// force correct content-type and method for websockets and bad clients
 			r.Header.Set("content-type", "application/json")
 			r.Header.Set("accept", "application/json")
@@ -243,20 +145,16 @@ func JsonRPC(log *logrus.Logger, withParams bool) func(http.Handler) http.Handle
 
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
-				render.Render(w, r, ErrorInternalServer(err))
-				AddLogField(ctx, "error", err.Error())
-				LogRequestDetails(r)
+				CancelConnection(w, r, err)
 				return
 			}
 			defer r.Body.Close()
 			r.Body = io.NopCloser(bytes.NewBuffer(body))
 			switch v := m.ParsePayload(body).(type) {
 			case dto.RPCBatch:
-				requests, err := m.requestsBatchFrom(r, v)
+				requests, err := m.splitBatchToSubrequests(r, v)
 				if err != nil {
-					render.Render(w, r, ErrorInvalidRequest(err))
-					AddLogField(ctx, "error", err.Error())
-					LogRequestDetails(r)
+					CancelConnection(w, r, err)
 					return
 				}
 				writers := make([]*InMemoryWriter, len(requests))
@@ -266,25 +164,21 @@ func JsonRPC(log *logrus.Logger, withParams bool) func(http.Handler) http.Handle
 					wg.Add(1)
 					go func(writer http.ResponseWriter, request *http.Request) {
 						next.ServeHTTP(writer, request)
-						LogRequestDetails(r)
+						LogRequestDetails(request)
 						defer wg.Done()
 					}(writers[i], requests[i])
 				}
 				wg.Wait()
 				err = writeBatchResponse(w, writers)
 				if err != nil {
-					render.Render(w, r, ErrorInternalServer(err))
-					AddLogField(ctx, "error", err.Error())
-					LogRequestDetails(r)
+					CancelConnection(w, r, err)
 					return
 				}
 			case dto.RPCFrame:
-				r = r.WithContext(m.NewFrameContext(ctx, &v))
+				r = r.WithContext(m.NewFrameContext(r.Context(), &v))
 				next.ServeHTTP(w, r)
-				LogRequestDetails(r)
 			default:
 				next.ServeHTTP(w, r)
-				LogRequestDetails(r)
 			}
 		})
 	}
