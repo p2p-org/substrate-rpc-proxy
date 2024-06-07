@@ -8,7 +8,7 @@ Project consists of two parts:
 
 **proxy** - simple reverse proxy supports websocket/http
 
-**consumer** (optional) - monitors extrinsics (seen by proxy) inclusion to blockchain, provide observability and retry mechanism to resist node failures after transaction was accepted by RPC node but before it was included into block
+**consumer** (optional) - monitors extrinsics (seen by proxy) inclusion to blockchain, provides observability and retry mechanism to resist node failures after transaction was accepted by RPC node but before it was included into block
 
 
 How it works
@@ -100,6 +100,10 @@ Worth mentioning:
       }
     ...
   ```
+
+#### Known issues
+
+* Headers `X-Real-IP`, ` True-Client-IP`, `X-Forwarded-For` used to identify clients IP can be crafted by maliciuos clients. Please prefer using substrate-rpc-proxy in trusted, dev environments or setup firewall to accept connections only from trusted addresses
 
 #### History
 

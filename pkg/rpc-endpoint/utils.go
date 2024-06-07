@@ -36,7 +36,7 @@ func FormatUpstream(some interface{}) string {
 	if port != "" {
 		host = fmt.Sprintf("%s:%s", host, port)
 	}
-	if path != "" {
+	if path != "" && path != "/" {
 		host = fmt.Sprintf("%s%s", host, path)
 	}
 	return host

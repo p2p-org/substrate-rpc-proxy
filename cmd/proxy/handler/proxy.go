@@ -60,26 +60,26 @@ func NewProxy(l *logrus.Logger) *Proxy {
 	}
 }
 
-func (p *Proxy) Connect(client *http.Request) (*websocket.Conn, string, error) {
-	ctx := client.Context()
+func (p *Proxy) Connect(r *http.Request) (*websocket.Conn, string, error) {
+	ctx := r.Context()
 	proxyHeader := make(http.Header)
-	middleware.CopyHeader(proxyHeader, client.Header)
+	middleware.CopyHeader(proxyHeader, r.Header)
 	prov := middleware.GetEndpointProvider(ctx)
 	tries := []string{}
 	for i := 0; i < 3; i++ {
-		toServer := prov.GetAliveEndpoint("websocket", 1)
-		conn, _, err := websocket.Dial(ctx, toServer, &websocket.DialOptions{
+		url := prov.GetAliveEndpoint("websocket", 1)
+
+		conn, _, err := websocket.Dial(ctx, url, &websocket.DialOptions{
 			HTTPHeader: proxyHeader,
 			HTTPClient: p.client,
 		})
 		if err != nil {
 			time.Sleep(5 * time.Second)
-			tries = append(tries, toServer)
+			tries = append(tries, url)
 			continue
 		}
 		conn.SetReadLimit(p.messageMaxBytes)
-		middleware.AddLogField(ctx, "upstream", toServer)
-		return conn, toServer, nil
+		return conn, url, nil
 	}
 	return nil, "", fmt.Errorf("unable to create upstream connection tried: %s", strings.Join(tries, ","))
 }
@@ -93,7 +93,7 @@ func (p *Proxy) RPCHandler() *RPCHandler {
 	return &h
 }
 
-func (h *RPCHandler) GetUpstream(w http.ResponseWriter, r *http.Request) (*Upstream, error) {
+func (h *RPCHandler) GetOrCreateWSUpstreamConnection(w http.ResponseWriter, r *http.Request) (*Upstream, error) {
 	if t, ok := h.wsUpstreams.Load(middleware.GetConnectionID(r.Context())); !ok {
 
 		conn, server, err := h.proxy.Connect(r)
@@ -117,7 +117,6 @@ func (h *RPCHandler) GetUpstream(w http.ResponseWriter, r *http.Request) (*Upstr
 
 		return &upst, nil
 	} else {
-
 		return t.(*Upstream), nil
 	}
 }
@@ -125,19 +124,14 @@ func (h *RPCHandler) GetUpstream(w http.ResponseWriter, r *http.Request) (*Upstr
 func (h *RPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var b []byte
 	ctx := r.Context()
-	server := middleware.GetAssignedUpstream(ctx)
-
-	r.RequestURI = ""
-	u, _ := url.Parse(server)
-	r.URL = u
-	r.Host = u.Host
 
 	switch middleware.GetClientConnectionType(ctx) {
 	case middleware.ConnectionTypeWebsocketCtx:
-		upst, err := h.GetUpstream(w, r)
+		upst, err := h.GetOrCreateWSUpstreamConnection(w, r)
+		middleware.AddLogField(ctx, "upstream", upst.server)
 		if err != nil {
-			middleware.CancelWebsocket(ctx, err)
 			h.log.WithError(err).WithField("client", r.RemoteAddr).Warnf("connection with upstream failed")
+			middleware.CancelConnection(w, r, err)
 			return
 		}
 
@@ -147,26 +141,37 @@ func (h *RPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var resp []byte
 		if middleware.GetRPCRequestID(ctx) != 0 {
 			if resp, err = upst.WriteAndGetResponse(ctx, middleware.GetRPCRequestID(ctx), b); err != nil {
-				middleware.CancelWebsocket(ctx, err)
 				h.log.WithError(err).WithField("client", upst.client).WithField("upstream", upst.server).Warnf("failed to pass request and read response from upstream")
+				middleware.CancelConnection(w, r, err)
 				return
 			}
 			// send response back to client
 			if _, err = w.Write(resp); err != nil {
-				middleware.CancelWebsocket(ctx, err)
 				h.log.WithError(err).WithField("client", upst.client).WithField("upstream", upst.server).Warnf("unable to write response to client")
+				middleware.CancelConnection(w, r, err)
 				return
 			}
 		} else {
 			// RPCRequestID unknown pass request as-is and let Upstream.poll copy all responses to client
 			if err := upst.conn.Write(ctx, websocket.MessageText, b); err != nil {
-				middleware.CancelWebsocket(ctx, err)
 				h.log.WithError(err).WithField("client", upst.client).WithField("upstream", upst.server).Warnf("unable to write response to client")
+				middleware.CancelConnection(w, r, err)
 				return
 			}
 		}
 
 	default:
+		prov := middleware.GetEndpointProvider(ctx)
+		server := prov.GetAliveEndpoint("http", 1)
+
+		// rewrite client host and url with upstream data
+		r.RequestURI = ""
+		u, _ := url.Parse(server)
+		r.URL = u
+		r.Host = u.Host
+
+		middleware.AddLogField(ctx, "upstream", server)
+
 		proxyHeader := make(http.Header)
 		middleware.CopyHeader(proxyHeader, r.Header)
 		r.Header = proxyHeader

@@ -65,18 +65,19 @@ func (i *ExtrinsicsInspector) LogToDB(next http.Handler) http.Handler {
 
 				if extr != nil {
 					i.mon.ProcessEvent(monitoring.MetricExtrinsicsCount, 1)
-					if time.Until(i.headerNextUpdate) < 0 {
-						header, err := i.client.ChainGetHeader(ctx, "")
-						if err == nil {
-							i.log.WithField("headerNo", header.MustInt("number")).Info("obtained latest header")
-							i.headerNextUpdate = time.Now().Add(5 * time.Second)
-							i.headerCurrent = header
-						} else {
-							i.log.WithError(err).Warn("unable to read current header from node")
-						}
-					}
-					i.log.Debugf("submitted extrinsic: %+v", frame.Params)
 					go func(ctx context.Context) {
+						if time.Until(i.headerNextUpdate) < 0 {
+							header, err := i.client.ChainGetHeader(ctx, "")
+							if err == nil {
+								i.log.WithField("headerNo", header.MustInt("number")).Info("obtained latest header")
+								i.headerNextUpdate = time.Now().Add(5 * time.Second)
+								i.headerCurrent = header
+							} else {
+								i.log.WithError(err).Warn("unable to read current header from node")
+							}
+						}
+						i.log.Debugf("submitted extrinsic: %+v", frame.Params)
+
 						extr.FirstSeenBlockNo = i.headerCurrent.MustInt("number")
 						err = i.db.LogMessage(ctx, &dto.StoredMessage{
 							Extrinsic: extr,
