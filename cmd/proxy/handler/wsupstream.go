@@ -42,7 +42,7 @@ func (ws *Upstream) IsRecoverable(err error) bool {
 		ws.log.WithError(err).
 			WithField("upstream", ws.server).
 			WithField("client", ws.client).
-			Infof("%s client has subscriptions or operating raw bytes must be disconnected", cid)
+			Warnf("%s upstream error: must close client connection because it has subscriptions", cid)
 		return false
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
@@ -66,15 +66,15 @@ func (ws *Upstream) WriteAndGetResponse(ctx context.Context, id int, req []byte)
 	}
 	ch := make(chan []byte, 1)
 	defer close(ch)
+	// accept new requests only when connection not paused
 	ws.pause.Lock()
 	ws.requests.Store(id, RunningRequestPayloads{
 		Request:   req,
 		ResposeCh: ch,
 	})
-
+	ws.pause.Unlock()
 	defer ws.requests.Delete(id)
 	err := ws.conn.Write(ctx, websocket.MessageText, req)
-	ws.pause.Unlock()
 	if err != nil && ws.Unrecoverable {
 		return nil, err
 	}
@@ -164,16 +164,11 @@ func (ws *Upstream) poll(w http.ResponseWriter, r *http.Request) {
 			cancel()
 			if err != nil {
 				if !ws.IsRecoverable(err) {
-					ws.log.WithError(err).
-						WithField("upstream", ws.server).
-						WithField("client", ws.client).
-						Warnf("%s upstream read failure", cid)
 					return
 				}
-				ws.pause.Lock()
+
 				ws.conn.Close(websocket.StatusAbnormalClosure, "")
 				if conn, server, err := ws.proxy.Connect(r); err != nil {
-					ws.pause.Unlock()
 					ws.log.WithError(err).
 						WithField("upstream", ws.server).
 						WithField("client", ws.client).
@@ -184,6 +179,7 @@ func (ws *Upstream) poll(w http.ResponseWriter, r *http.Request) {
 					ws.conn = conn
 					ws.server = server
 				}
+				ws.pause.Lock()
 				if !ws.retryRunningRequests() {
 					ws.pause.Unlock()
 					ws.log.WithError(err).

@@ -105,9 +105,7 @@ func AcceptConnection(next http.Handler) http.Handler {
 		rctx := ctx.Value(chi.RouteCtxKey).(*chi.Context)
 		urlParams := rctx.URLParams
 		routePatterns := rctx.RoutePatterns
-		//go func() {
-		//
-		//}
+
 		for {
 			_, b, err := conn.Read(ctx)
 			if err != nil {

@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	defaultExecTimeout = 60 * time.Minute
+	defaultExecTimeout = 120 * time.Second
 )
 
 type RunningRequestPayloads struct {
