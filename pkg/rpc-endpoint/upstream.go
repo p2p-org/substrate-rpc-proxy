@@ -92,7 +92,7 @@ func (e *UpstreamEndpoint) GetAddr(kind string) string {
 }
 
 func ParseUpstreamAddr(in string) (*Upstream, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	if !strings.Contains(in, "://") {
 		in = fmt.Sprintf("http+ws://%s", in)
