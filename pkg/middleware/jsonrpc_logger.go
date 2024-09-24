@@ -4,17 +4,40 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/p2p-org/substrate-rpc-proxy/pkg/dto"
 	"github.com/sirupsen/logrus"
 )
 
-func Logger(log *logrus.Logger, withParams bool) func(http.Handler) http.Handler {
+type LoggerOption func(context.Context) context.Context
+
+func LogWithParams() LoggerOption {
+	return func(ctx context.Context) context.Context {
+		return context.WithValue(ctx, LogWithParamsCtxKey, true)
+	}
+}
+
+var log *logrus.Logger
+
+func LogWithIgnoreMethods(methods []string) LoggerOption {
+	return func(ctx context.Context) context.Context {
+		return context.WithValue(ctx, LogWithIgnoreMethodsCtxKey, methods)
+	}
+}
+
+func Logger(l *logrus.Logger, opts ...LoggerOption) func(http.Handler) http.Handler {
+	log = l
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			ctx = context.WithValue(ctx, LogLoggerCtxKey, log)
-			ctx = context.WithValue(ctx, LogWithParamsCtxKey, withParams)
+			for _, opt := range opts {
+				ctx = opt(ctx)
+			}
+			//ctx = context.WithValue(ctx, LogWithParamsCtxKey, withParams)
 			r = r.WithContext(ctx)
 			next.ServeHTTP(w, r)
 			LogRequestDetails(r)
@@ -67,31 +90,25 @@ func logFieldsFromRequest(r *http.Request) logrus.Fields {
 	return logFields
 }
 
-func LogSubscriptionDetails(r *http.Request, method string, subscriptionId string) {
-	ctx := r.Context()
-	log := GetLogger(ctx)
-	if log == nil {
-		return
-	}
-	logFields := logFieldsFromRequest(r)
-	logFields["direction"] = "server-push"
-	logFields["sub_id"] = subscriptionId
-	logFields["method"] = method
+func LogSubscriptionDetails(ctx context.Context, client string, upstream string, f dto.RPCFrame) {
 
-	path := r.URL.Path
-	if path == "" {
-		path = "/"
-	}
-	log.WithFields(logFields).Debugf("%s %s", GetConnectionID(ctx), path)
+	logFields := make(logrus.Fields)
+	logFields["client"] = client
+	logFields["upsteam"] = upstream
+	logFields["direction"] = "server-push"
+	logFields["sub_id"] = dto.MustMap(f.Params).MustString("subscription")
+	logFields["method"] = f.Method
+	chictx := chi.RouteContext(ctx)
+
+	log.WithFields(logFields).Debugf("%s %s", GetConnectionID(ctx), chictx.RoutePath)
 }
 
 func LogRequestDetails(r *http.Request) {
 	ctx := r.Context()
-	log := GetLogger(ctx)
+
 	if log == nil {
 		return
 	}
-
 	logFields := logFieldsFromRequest(r)
 
 	if withParams := ctx.Value(LogWithParamsCtxKey); withParams != nil && withParams.(bool) {
@@ -106,18 +123,25 @@ func LogRequestDetails(r *http.Request) {
 	}
 	if logFields["method"] == "" {
 		logFields["method"] = "batch"
-		logFields["id"] = GetConnectionID(ctx)
+		logFields["id"] = 0
 	}
-	sec := -1.0
+	if ignoreMethods := ctx.Value(LogWithIgnoreMethodsCtxKey); ignoreMethods != nil {
+		m, ok := ignoreMethods.([]string)
+		if ok {
+			for _, method := range m {
+				if strings.EqualFold(method, logFields["method"].(string)) {
+					return
+				}
+			}
+		}
+	}
+
 	if startTime := ctx.Value(LogRequestStartTime); startTime != nil {
-		sec = time.Since(startTime.(time.Time)).Seconds()
+		logFields["duration"] = fmt.Sprintf("%fs", time.Since(startTime.(time.Time)).Seconds())
 	}
-	logFields["duration"] = fmt.Sprintf("%fs", sec)
 	logFields["direction"] = "request"
 
-	path := r.URL.Path
-	if path == "" {
-		path = "/"
-	}
-	log.WithFields(logFields).Debugf("%s %s", GetConnectionID(ctx), path)
+	chictx := chi.RouteContext(ctx)
+
+	log.WithFields(logFields).Debugf("%s %s", GetConnectionID(ctx), chictx.RoutePath)
 }

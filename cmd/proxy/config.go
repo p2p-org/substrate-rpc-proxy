@@ -3,6 +3,7 @@ package main
 type Config struct {
 	LogLevel                 string   `envconfig:"SUB_LOG_LEVEL" default:"trace"`
 	LogIncludeParams         bool     `envconfig:"SUB_LOG_PARAMS"`
+	LogWithIgnoreMethods     []string `envconfig:"SUB_LOG_IGNORE_METHODS"`
 	LogFormatter             string   `envconfig:"SUB_LOG_FORMAT" default:"text"`
 	InspecExtrinsics         bool     `envconfig:"SUB_INSPECT_EXTRINISICS"`
 	InspectExtrinsicsMethods []string `envconfig:"SUB_INSPECT_METHODS" default:"author_submitExtrinsic"`

@@ -98,7 +98,7 @@ func ThrottleWithOpts(opts ThrottleOpts) func(http.Handler) http.Handler {
 
 			case <-ctx.Done():
 				if IsWebsocket(r) {
-					CancelConnection(w, r, errors.New(errContextCanceled))
+					CancelConnection(ctx, errors.New(errContextCanceled))
 				} else {
 					http.Error(w, errContextCanceled, http.StatusTooManyRequests)
 				}
@@ -113,7 +113,7 @@ func ThrottleWithOpts(opts ThrottleOpts) func(http.Handler) http.Handler {
 				select {
 				case <-timer.C:
 					if IsWebsocket(r) {
-						CancelConnection(w, r, errors.New(errCapacityExceeded))
+						CancelConnection(ctx, errors.New(errCapacityExceeded))
 					} else {
 						http.Error(w, errTimedOut, http.StatusTooManyRequests)
 					}
@@ -121,7 +121,7 @@ func ThrottleWithOpts(opts ThrottleOpts) func(http.Handler) http.Handler {
 				case <-ctx.Done():
 					timer.Stop()
 					if IsWebsocket(r) {
-						CancelConnection(w, r, errors.New(errCapacityExceeded))
+						CancelConnection(ctx, errors.New(errCapacityExceeded))
 					} else {
 						http.Error(w, errContextCanceled, http.StatusTooManyRequests)
 					}
@@ -137,7 +137,7 @@ func ThrottleWithOpts(opts ThrottleOpts) func(http.Handler) http.Handler {
 
 			default:
 				if IsWebsocket(r) {
-					CancelConnection(w, r, errors.New(errCapacityExceeded))
+					CancelConnection(ctx, errors.New(errCapacityExceeded))
 				} else {
 					http.Error(w, errCapacityExceeded, http.StatusTooManyRequests)
 				}

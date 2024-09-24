@@ -14,7 +14,7 @@ type Observable interface {
 
 type Observer interface {
 	ProcessEvent(string, float64, ...string)
-	Reset(string)
+	Reset(string, ...string)
 	Register(Observable)
 }
 
@@ -176,15 +176,15 @@ func (p *PrometheusMetrics) ProcessEvent(name string, value float64, lvs ...stri
 	}
 }
 
-func (p *PrometheusMetrics) Reset(name string) {
+func (p *PrometheusMetrics) Reset(name string, lvs ...string) {
 	switch name {
 	case MetricProxyRunningRequests:
 		if p.ProxyRunningRequests != nil {
-			p.ProxyRunningRequests.Reset()
+			p.ProxyRunningRequests.DeleteLabelValues(lvs...)
 		}
 	case MetricProxyEstablishedConnections:
 		if p.ProxyEstablishedConnections != nil {
-			p.ProxyEstablishedConnections.Reset()
+			p.ProxyEstablishedConnections.DeleteLabelValues(lvs...)
 		}
 	}
 }

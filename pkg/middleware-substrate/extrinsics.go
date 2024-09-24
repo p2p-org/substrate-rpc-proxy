@@ -61,9 +61,7 @@ func (i *ExtrinsicsInspector) LogToDB(next http.Handler) http.Handler {
 				}
 			}
 			if needToInspect {
-				extr, _ := i.decoder.GetExtrinsicFromParams(ctx, frame.Params)
-
-				if extr != nil {
+				if extr, _ := i.decoder.GetExtrinsicDataFrom(ctx, frame.Params); extr != nil {
 					i.mon.ProcessEvent(monitoring.MetricExtrinsicsCount, 1)
 					go func(ctx context.Context) {
 						if time.Until(i.headerNextUpdate) < 0 {

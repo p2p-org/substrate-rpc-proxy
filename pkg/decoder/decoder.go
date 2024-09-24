@@ -52,10 +52,10 @@ func NewDecoder(l *logrus.Logger, metadata string) (*Decoder, error) {
 	return &d, nil
 }
 
-func (d *Decoder) GetExtrinsicFromParams(ctx context.Context, params interface{}) (*dto.Extrinsic, error) {
+func (d *Decoder) GetExtrinsicDataFrom(ctx context.Context, params interface{}) (*dto.ExtrinsicData, error) {
 	var hexparams []string
 	if params != nil {
-		hexparams = d.readAllHexParams(ctx, params)
+		hexparams = ReadAllHexParams(ctx, params)
 	} else {
 		// no params to decode
 		return nil, nil
@@ -64,23 +64,29 @@ func (d *Decoder) GetExtrinsicFromParams(ctx context.Context, params interface{}
 		// transaction min len can not be less than 80
 		// https://wiki.polkadot.network/docs/build-transaction-construction#transaction-format
 		if len(p) >= 160 {
-			defer func() {
-				if r := recover(); r != nil {
-					if s, ok := r.(string); !ok || !strings.Contains(s, "Extrinsics version") {
-						d.log.Warn(r)
-					}
-				}
-			}()
 			scale := scale.ExtrinsicDecoder{}
-			scale.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes(p)}, &types.ScaleDecoderOption{Metadata: d.metadata})
-			scale.Process()
-			period, _, _ := DecodeExtrinsicEra(scale.Era, 0)
-			return &dto.Extrinsic{
-				Payload:          p,
-				Hash:             scale.ExtrinsicHash,
-				Era:              scale.Era,
-				LifetimeInBlocks: uint64(period),
-			}, nil
+			decoded := false
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						if s, ok := r.(string); !ok || !strings.Contains(s, "Extrinsics version") {
+							d.log.Warn(r)
+						}
+					}
+				}()
+				scale.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes(p)}, &types.ScaleDecoderOption{Metadata: d.metadata})
+				scale.Process()
+				decoded = true
+			}()
+			if decoded {
+				period, _, _ := DecodeExtrinsicEra(scale.Era, 0)
+				return &dto.ExtrinsicData{
+					Payload:          p,
+					Hash:             scale.ExtrinsicHash,
+					Era:              scale.Era,
+					LifetimeInBlocks: uint64(period),
+				}, nil
+			}
 		}
 	}
 	return nil, nil
@@ -178,25 +184,7 @@ func (r *StorageRequest) DecodeResponse(payload string) dto.Params {
 
 type Params interface{}
 
-func (d *Decoder) DecodeExtrinsic(ctx context.Context, payload string) dto.Mapped {
-	decoder := scale.ExtrinsicDecoder{}
-	defer func() {
-		if r := recover(); r != nil {
-			d.log.Warn(r)
-		}
-	}()
-
-	decoder.Init(scaleBytes.ScaleBytes{Data: utiles.HexToBytes(payload)}, &types.ScaleDecoderOption{Metadata: d.metadata})
-	decoder.Process()
-	if b, err := jsoniter.Marshal(decoder.Value); err == nil {
-		var result dto.Mapped
-		jsoniter.Unmarshal(b, &result)
-		return result
-	}
-	return nil
-}
-
-func (d *Decoder) readAllHexParams(ctx context.Context, params dto.Params) []string {
+func ReadAllHexParams(ctx context.Context, params dto.Params) []string {
 	if params == nil {
 		return []string{}
 	}
@@ -218,13 +206,10 @@ func (d *Decoder) readAllHexParams(ctx context.Context, params dto.Params) []str
 					continue
 				}
 			} else {
-				nested := d.readAllHexParams(ctx, p)
+				nested := ReadAllHexParams(ctx, p)
 				current = append(current, nested...)
 			}
 		}
-	} else {
-		d.log.Debugf("unsupported params type %v", params)
-		// TODO add some logging when params not a list of strings
 	}
 	return current
 }
