@@ -93,9 +93,16 @@ func main() {
 	r.Use(chimiddleware.RealIP)
 	r.Use(middleware.EndpointProvider(upstreams))
 	r.Use(middleware.AcceptConnection)
+	logopts := []middleware.LoggerOption{}
+	if cfg.LogIncludeParams {
+		logopts = append(logopts, middleware.LogWithParams())
+	}
+	if len(cfg.LogWithIgnoreMethods) > 0 {
+		logopts = append(logopts, middleware.LogWithIgnoreMethods(cfg.LogWithIgnoreMethods))
+	}
 	r.Use(middleware.JsonRPC(
 		httpmetrics.Middleware(),
-		middleware.Logger(l, cfg.LogIncludeParams),
+		middleware.Logger(l, logopts...),
 	))
 	r.Use(middleware.ThrottleWithOpts(middleware.ThrottleOpts{
 		Limit:          cfg.ThrottleLimit,
@@ -112,7 +119,7 @@ func main() {
 		r.Use(extrinsicInsp.LogToDB)
 	}
 	r.Use(substrate.GetStorageJson(l, decoder, client).Serve)
-	r.Mount("/", proxy.RPCHandler())
+	r.Mount("/", proxy)
 
 	for _, addr := range cfg.Listen {
 		var rpclistener net.Listener

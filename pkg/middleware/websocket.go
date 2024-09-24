@@ -59,6 +59,20 @@ func GetConnectionID(ctx context.Context) string {
 	return fmt.Sprintf("%x", buf)
 }
 
+func GetClientConnection(ctx context.Context) *websocket.Conn {
+	conn := ctx.Value(ConnectionClientWSCtxKey)
+	if c, ok := conn.(*websocket.Conn); ok {
+		return c
+	} else {
+		return nil
+	}
+}
+
+func GetClientConnectionContext(ctx context.Context) context.Context {
+	loaded := ctx.Value(ConnectionParentCtxKey)
+	return loaded.(context.Context)
+}
+
 func AcceptConnection(next http.Handler) http.Handler {
 	var reqid uint64
 	var buf [12]byte
@@ -74,6 +88,7 @@ func AcceptConnection(next http.Handler) http.Handler {
 			ctx = context.WithValue(ctx, ConnectionClientIDCtxKey, fmt.Sprintf("%s-%06d", prefix, reqid))
 			ctx = context.WithValue(ctx, ConnectionClientCancelCtxKey, cancel)
 			ctx = context.WithValue(ctx, ConnectionTypeCtxKey, ConnectionTypeHTTPCtx)
+			ctx = context.WithValue(ctx, ConnectionParentCtxKey, ctx)
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
@@ -89,11 +104,12 @@ func AcceptConnection(next http.Handler) http.Handler {
 		}()
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
+		ctx = context.WithValue(ctx, ConnectionClientIDCtxKey, fmt.Sprintf("%s-%06d", prefix, reqid))
 		ctx = context.WithValue(ctx, ConnectionClientCancelCtxKey, cancel)
 		// save and forward client connection for subscription direct cross-posting
 		ctx = context.WithValue(ctx, ConnectionClientWSCtxKey, conn)
 		ctx = context.WithValue(ctx, ConnectionTypeCtxKey, ConnectionTypeWebsocketCtx)
-		ctx = context.WithValue(ctx, ConnectionClientIDCtxKey, fmt.Sprintf("%s-%06d", prefix, reqid))
+		ctx = context.WithValue(ctx, ConnectionParentCtxKey, ctx)
 
 		conn.SetReadLimit(15 * 1024 * 1024)
 		ww := &WrapedWSWriter{
@@ -127,8 +143,7 @@ func AcceptConnection(next http.Handler) http.Handler {
 	return http.HandlerFunc(fn)
 }
 
-func CancelConnection(w http.ResponseWriter, r *http.Request, err error) {
-	ctx := r.Context()
+func CancelConnection(ctx context.Context, err error) {
 	if cancel := ctx.Value(ConnectionClientCancelCtxKey); cancel != nil {
 		cancel.(context.CancelFunc)()
 	}

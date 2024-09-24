@@ -65,7 +65,7 @@ type Block struct {
 	Extrinsics []string
 }
 
-type Extrinsic struct {
+type ExtrinsicData struct {
 	Payload          string `json:"raw"`
 	Hash             string `json:"hash"`
 	Era              string `json:"era"`
@@ -85,7 +85,7 @@ type EventType struct {
 }
 
 type StoredMessage struct {
-	RPCFrame          *RPCFrame  `json:"rpcFrame"`
-	Extrinsic         *Extrinsic `json:"extrinsic"`
-	ContainsExtrinsic bool       `json:",omitempty"`
+	RPCFrame          *RPCFrame      `json:"rpcFrame"`
+	Extrinsic         *ExtrinsicData `json:"extrinsic"`
+	ContainsExtrinsic bool           `json:",omitempty"`
 }

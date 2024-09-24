@@ -55,8 +55,7 @@ func GetJsonRPCFrame(ctx context.Context) *dto.RPCFrame {
 	return nil
 }
 
-func GetJsonRPCMiddleware(r *http.Request) *JsonRPCMiddleware {
-	ctx := r.Context()
+func GetJsonRPCMiddleware(ctx context.Context) *JsonRPCMiddleware {
 	if rpc := ctx.Value(RPCMiddlewareCtxKey); rpc != nil {
 		if mw, ok := rpc.(*JsonRPCMiddleware); ok {
 			return mw
@@ -145,7 +144,7 @@ func JsonRPC(opts ...JsonRPCMiddlewareOption) func(http.Handler) http.Handler {
 
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
-				CancelConnection(w, r, err)
+				CancelConnection(r.Context(), err)
 				return
 			}
 			defer r.Body.Close()
@@ -154,7 +153,7 @@ func JsonRPC(opts ...JsonRPCMiddlewareOption) func(http.Handler) http.Handler {
 			case dto.RPCBatch:
 				requests, err := m.splitBatchToSubrequests(r, v)
 				if err != nil {
-					CancelConnection(w, r, err)
+					CancelConnection(r.Context(), err)
 					return
 				}
 				writers := make([]*InMemoryWriter, len(requests))
@@ -171,7 +170,7 @@ func JsonRPC(opts ...JsonRPCMiddlewareOption) func(http.Handler) http.Handler {
 				wg.Wait()
 				err = writeBatchResponse(w, writers)
 				if err != nil {
-					CancelConnection(w, r, err)
+					CancelConnection(r.Context(), err)
 					return
 				}
 			case dto.RPCFrame:
