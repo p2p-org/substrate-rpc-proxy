@@ -3,7 +3,7 @@ module github.com/p2p-org/substrate-rpc-proxy
 go 1.22
 
 require (
-	github.com/go-chi/chi/v5 v5.1.0
+	github.com/go-chi/chi/v5 v5.2.2
 	github.com/go-chi/render v1.0.3
 	github.com/itering/scale.go v1.9.8
 	github.com/json-iterator/go v1.1.12
