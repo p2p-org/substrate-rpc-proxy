@@ -10,7 +10,7 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/pierrec/xxHash v0.1.5
 	github.com/prometheus/client_golang v1.20.4
-	github.com/redis/go-redis/v9 v9.6.1
+	github.com/redis/go-redis/v9 v9.6.3
 	github.com/sirupsen/logrus v1.9.3
 	go.uber.org/automaxprocs v1.6.0
 	golang.org/x/crypto v0.27.0
