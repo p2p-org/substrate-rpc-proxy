@@ -1,6 +1,6 @@
 module github.com/p2p-org/substrate-rpc-proxy
 
-go 1.22
+go 1.23
 
 require (
 	github.com/go-chi/chi/v5 v5.1.0
@@ -11,7 +11,7 @@ require (
 	github.com/pierrec/xxHash v0.1.5
 	github.com/prometheus/client_golang v1.20.4
 	github.com/redis/go-redis/v9 v9.6.1
-	github.com/sirupsen/logrus v1.9.3
+	github.com/sirupsen/logrus v1.10.2
 	go.uber.org/automaxprocs v1.6.0
 	golang.org/x/crypto v0.27.0
 	nhooyr.io/websocket v1.8.17
