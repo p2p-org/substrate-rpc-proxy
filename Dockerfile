@@ -10,7 +10,7 @@ RUN \
   go build -v -o consumer ./cmd/consumer/ && \
   go build -v -o proxy ./cmd/proxy/
 
-FROM alpine:3.19
+FROM alpine:3.24
 COPY --from=builder /build/consumer /build/proxy /app/
 
 ENTRYPOINT []
